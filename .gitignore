@@ -1,0 +1,8 @@
+# Crea el archivo .gitignore
+echo ".env" >> .gitignore
+echo "__pycache__/" >> .gitignore
+echo "*.pkl" >> .gitignore
+echo "venv/" >> .gitignore
+echo "*.txt" >> .gitignore
+echo "*.csv" >> .gitignore
+echo "*.json" >> .gitignore
