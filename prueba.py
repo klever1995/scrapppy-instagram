@@ -166,20 +166,17 @@ def extraer_lista_seguidos(driver, username: str, max_scrolls=60, max_cuentas=10
 # ================== EXTRACCIÓN DE DATOS DE PERFIL INDIVIDUAL ==================
 
 def obtener_info_perfil_completa(driver, username: str) -> dict:
-
     username = username.strip().lstrip("@")
     url = f"https://www.instagram.com/{username}/"
     
     print(f"[PERFIL] Accediendo a: {url}")
     driver.get(url)
     
-    # Esperar a que cargue el contenido principal
     WebDriverWait(driver, 15).until(
         EC.presence_of_element_located((By.TAG_NAME, "header"))
     )
     time.sleep(2)
     
-    # Inicializar diccionario con valores por defecto
     data = {
         "nombre_completo": None,
         "usuario": username,
@@ -193,45 +190,35 @@ def obtener_info_perfil_completa(driver, username: str) -> dict:
     }
     
     try:
-        # 1. Extraer usuario (@) - h1 con clase específica
         try:
             usuario_element = driver.find_element(By.CSS_SELECTOR, "h1._ab1a")
             data["usuario"] = usuario_element.text.strip()
         except:
             pass
         
-        # 2. Extraer nombre completo - buscar span específico para el nombre
         try:
- 
             spans = driver.find_elements(By.CSS_SELECTOR, "span.x1lliihq.x1plvlek")
             for span in spans:
                 text = span.text.strip()
                 if text and text != data["usuario"]:
-                    # Filtrar textos no deseados
                     unwanted = ["publicaciones", "seguidores", "seguidos", "Seguir", 
                                "Message", "Enviar mensaje", "Message", "Siguiendo"]
                     if not any(unw in text.lower() for unw in unwanted):
                         if not text.replace(",", "").replace(".", "").replace("mil", "").strip().isdigit():
                             data["nombre_completo"] = text
                             break
-        except Exception as e:
-            print(f"[DEBUG] Error buscando nombre: {e}")
+        except:
+            pass
         
-        # 3. Extraer números: publicaciones, seguidores, seguidos
         try:
-
             number_elements = driver.find_elements(By.CSS_SELECTOR, "span.html-span.xdj266r.x14z9mp.xat24cr.x1lziwak.xexx8yu")
             
             if len(number_elements) >= 3:
-
                 def parse_instagram_number(text):
                     if not text:
                         return 0
-                    # Limpiar texto
                     text = text.lower().replace("mil", "k").replace("k", "000")
                     text = text.replace(",", ".").replace(" ", "")
-                    
-                    # Extraer números y decimales
                     import re
                     match = re.search(r"(\d+(?:\.\d+)?)", text)
                     if match:
@@ -240,40 +227,60 @@ def obtener_info_perfil_completa(driver, username: str) -> dict:
                             num = int(num * 1000)
                         return int(num)
                     return 0
-
+                
                 seguidores_text = number_elements[1].text.strip() if len(number_elements) > 1 else "0"
                 data["seguidores"] = parse_instagram_number(seguidores_text)
-
+                
                 seguidos_text = number_elements[2].text.strip() if len(number_elements) > 2 else "0"
                 data["seguidos"] = parse_instagram_number(seguidos_text)
-
+            
             if data["seguidores"] == 0 or data["seguidos"] == 0:
                 page_text = driver.page_source.lower()
-
                 import re
-
                 seguidores_match = re.search(r'(\d[\d\.,]*\s*(?:mil|k)?)\s*seguidores', page_text, re.IGNORECASE)
                 if seguidores_match:
                     data["seguidores"] = parse_instagram_number(seguidores_match.group(1))
-
                 seguidos_match = re.search(r'(\d[\d\.,]*\s*(?:mil|k)?)\s*seguidos', page_text, re.IGNORECASE)
                 if seguidos_match:
                     data["seguidos"] = parse_instagram_number(seguidos_match.group(1))
                     
-        except Exception as e:
-            print(f"[DEBUG] Error buscando números: {e}")
+        except:
+            pass
         
-        # 4. Extraer biografía
         try:
-            bio_element = driver.find_element(By.CSS_SELECTOR, "div._ap3a._aaco._aacu._aacy._aad6._aade")
+            categoria_element = driver.find_element(By.CSS_SELECTOR, "div._ap3a._aaco._aacu._aacy._aad6._aade")
+            data["categoria"] = categoria_element.text.strip()
+        except:
+            pass
+        
+        try:
+            bio_element = driver.find_element(By.CSS_SELECTOR, "span._ap3a._aaco._aacu._aacx._aad7._aade")
             data["biografia"] = bio_element.text.strip()
         except:
-            pass  
+            try:
+                bio_divs = driver.find_elements(By.CSS_SELECTOR, "div._ap3a._aaco._aacu._aacy._aad6._aade")
+                for div in bio_divs:
+                    text = div.text.strip()
+                    if text and text != data.get("categoria", ""):
+                        if len(text.split()) > 2:
+                            data["biografia"] = text
+                            break
+            except:
+                pass
         
-        # 5. Extraer tipo de cuenta y categoría (dejar como None por ahora)
+        try:
+            page_html = driver.page_source.lower()
+            if "business" in page_html or "empresa" in page_html:
+                data["tipo_cuenta"] = "empresa"
+            elif "creator" in page_html or "creador" in page_html or "public figure" in page_html:
+                data["tipo_cuenta"] = "creador"
+            elif "personal" in page_html or "personal blog" in page_html:
+                data["tipo_cuenta"] = "personal"
+        except:
+            pass
         
     except Exception as e:
-        print(f"[ERROR] Error general extrayendo datos de {username}: {str(e)}")
+        print(f"[ERROR] Error extrayendo datos de {username}: {str(e)}")
     
     return data
 
